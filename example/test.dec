@@ -1,0 +1,139 @@
+
+module Example where
+
+{-
+  Imports.
+-}
+import Data-Maybe using (Maybe, from-just, maybe)
+import Data-Bool  using (Bool, if)
+
+-- Single function
+--
+val id : type a. a -> a
+... = \x -> x
+
+-- Another single function
+--
+val const : type a b. b -> a -> a
+... = \y, x -> x
+
+-- Mutually-recursive block
+--
+mutual
+  { val f : Int -> Int = \x -> g x
+
+    val g : Int -> Int
+    ... = \x -> f x
+  }
+
+{-
+  Single type
+-}
+type Unit = {}
+
+-- Mutually-recursive types
+--
+mutual {
+  type Some (a : *) =
+    { head : a
+    , tail : Many a
+    }
+
+  type Many (a : *) =
+    < #Nil  : Unit
+    , #Cons : Some a
+    >
+}
+
+-- Typeclass
+--
+class Eq a {
+  eq : a -> a -> Bool
+}
+
+-- Typeclass w/deps
+--
+class Ord a when
+  Eq a
+{
+  cmp : a -> a -> Ord a
+}
+
+-- Typeclass w/many fields
+--
+class Monoid a {
+  mempty  : a;
+  mappend : a -> a -> a
+}
+
+-- Typeclass w/many fields, params & decls
+--
+class Action m a when
+  Ord m,
+  Monoid a
+{
+  act : a -> m -> m;
+  tca : m -> a -> a
+}
+
+-- Instance
+--
+instance Ord (Pair a b) when
+  Ord a, Ord b
+{
+  cmp = \a, b -> mappend (cmp a.fst b.fst) (cmp a.snd b.snd);
+  boo = \a, b -> b
+}
+
+-- HKT
+--
+type Fix (f : * => *) = {
+  fix : f (Fix f)
+}
+
+-- Local let-rec
+--
+val foo : Int
+... =
+  let
+    val f : Int = g,
+    val g : Int = f;
+  plus x y
+
+-- Record literal
+--
+val obj : Int
+... =
+{
+  foo = \x -> 2,
+  bar = plus 4
+}
+
+-- Record Update
+--
+val subj : Int = with obj do
+  { bar = minus 3
+  , foo = a.get  -- record access
+  }
+
+-- Usage of #-constructors
+--
+val list : List Int = #Cons
+  { head = 1
+  , tail = #Nil {}
+  }
+
+-- Case split
+--
+val a : Int
+... = case list of {
+  #Cons p -> p.head;
+  #Nil  u -> 0
+}
+
+-- Case split #2
+--
+val b : Int = case list of
+  { #Cons p -> p.head
+  ; #Nil  u -> 0
+  }

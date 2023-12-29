@@ -1,0 +1,72 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.35.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           december
+version:        0.0.0
+build-type:     Simple
+
+library
+  exposed-modules:
+      AST
+      Parser
+  other-modules:
+      Paths_december
+  hs-source-dirs:
+      src
+  default-extensions:
+      DisambiguateRecordFields
+      DuplicateRecordFields
+      NoFieldSelectors
+      OverloadedRecordDot
+      DerivingStrategies
+      BlockArguments
+      LambdaCase
+      ImportQualifiedPost
+      NamedFieldPuns
+      DeriveFunctor
+      ScopedTypeVariables
+      UndecidableInstances
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+  build-depends:
+      base
+    , containers
+    , polysemy
+    , text
+    , unification-xd
+    , yard
+  default-language: Haskell2010
+
+executable dec
+  main-is: Main.hs
+  other-modules:
+      Paths_december
+  hs-source-dirs:
+      app
+  default-extensions:
+      DisambiguateRecordFields
+      DuplicateRecordFields
+      NoFieldSelectors
+      OverloadedRecordDot
+      DerivingStrategies
+      BlockArguments
+      LambdaCase
+      ImportQualifiedPost
+      NamedFieldPuns
+      DeriveFunctor
+      ScopedTypeVariables
+      UndecidableInstances
+      FlexibleInstances
+      GeneralizedNewtypeDeriving
+  build-depends:
+      base
+    , containers
+    , december
+    , polysemy
+    , text
+    , unification-xd
+    , yard
+  default-language: Haskell2010

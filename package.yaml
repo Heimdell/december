@@ -1,0 +1,38 @@
+
+name: december
+
+default-extensions:
+- DisambiguateRecordFields
+- DuplicateRecordFields
+- NoFieldSelectors
+- OverloadedRecordDot
+- DerivingStrategies
+- BlockArguments
+- LambdaCase
+- ImportQualifiedPost
+- NamedFieldPuns
+- DeriveFunctor
+- ScopedTypeVariables
+- UndecidableInstances
+- FlexibleInstances
+- GeneralizedNewtypeDeriving
+
+dependencies:
+- base
+- containers
+- polysemy
+- yard
+- unification-xd
+- text
+# - mptc
+
+library:
+  source-dirs: src
+
+executables:
+  dec:
+    source-dirs: app
+    dependencies:
+    - december
+
+    main: Main.hs

@@ -120,7 +120,7 @@ checkRank1 rank1 = do
       }
 
 checkTypeExpr :: CanSC r => TypeExpr -> Sem r TypeExpr
-checkTypeExpr = traverse checkType
+checkTypeExpr = traverse (checkName typesL)
 
 checkTypeSig :: CanSC r => TypeSig -> (TypeSig -> Sem r a) -> Sem r a
 checkTypeSig tsig ret = do

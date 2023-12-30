@@ -85,11 +85,11 @@ instance Show Rank1 where
       <> if null s.ctx then "" else " when " <> punctuate ", " (map show s.ctx)
 
 data TypeExpr_ it
-  = Record I [(Name, it)]
-  | Union  I [(Name, it)]
+  = Record I [(Name, Term Type_ it)]
+  | Union  I [(Name, Term Type_ it)]
   deriving stock (Functor, Foldable, Traversable)
 
-type TypeExpr = TypeExpr_ Type
+type TypeExpr = TypeExpr_ Name
 
 instance Show TypeExpr where
   show = \case

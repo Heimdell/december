@@ -3,22 +3,29 @@ module Phase.Typed.Type where
 
 import GHC.Generics
 
+import Text.Parser.Yard.Point
+
 import Ignored
 import Control.Unification
 import Name
 
-data Type_ i it
-  = TConst_ (Ign i) Name
-  | TApp_   (Ign i) it it
-  | TArrow_ (Ign i) it it
+data Type_ it
+  = TApp_   (Ign Point) it it
+  | TArrow_ (Ign Point) it it
   deriving stock    (Functor, Foldable, Traversable, Generic1)
   deriving anyclass (Unifiable)
 
 newtype TVar_ = TVar_ { name :: Name }
   deriving newtype (Eq, Ord, Show)
 
-type Type i = Term (Type_ i) TVar_
+type Type = Term Type_ TVar_
 
-pattern TConst i n   = Struct (TConst_ (Ign i) n)
+pattern TApp   i f x = Struct (TApp_   (Ign i) f x)
 pattern TArrow i d c = Struct (TArrow_ (Ign i) d c)
 pattern TVar     n   = Var    (TVar_           n)
+
+data TypeExpr_ n
+  = Record (Ign Point) [(Name, Term Type_ n)]
+  | Union  (Ign Point) [(Name, Term Type_ n)]
+
+type TypeExpr = TypeExpr_ TVar_

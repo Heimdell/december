@@ -1,52 +1,30 @@
 
-{-# LANGUAGE NoFieldSelectors #-}
-module AST where
+module Phase.Raw where
 
 import Data.Text qualified as Text
-import Text.Parser.Yard.Point
+import GHC.Generics
 
-class Show' a where
-  show' :: Int -> a -> String
+import Text.Parser.Yard hiding (Expr)
+import Control.Unification
 
-instance {-# OVERLAPPABLE #-} Show' a => Show a where
-  show = show' 0
+import Show'
+import Name
+import Ignored
 
-pr :: Int -> Int -> String -> String
-pr p n str = if p > n then "(" <> str <> ")" else str
+-- newtype VName = VName { name :: Name } deriving newtype (Show)
+-- newtype TName = TName { name :: Name } deriving newtype (Show)
+-- newtype CName = CName { name :: Name }
+-- newtype FName = FName { name :: Name } deriving newtype (Show)
+-- newtype MName = MName { name :: Name } deriving newtype (Show)
 
-punctuate :: String -> [String] -> String
-punctuate sep []       = ""
-punctuate sep [x]      = x
-punctuate sep [x, y]   = x <> sep <> y
-punctuate sep (x : xs) = x <> sep <> punctuate sep xs
+type I = Ign Point
 
-indent :: String -> String
-indent = unlines . map ("  " ++) . lines
-
-semi (v, k) = show v <> ": " <> show k
-
-assign (v, k) = show v <> " = " <> show k
-
-data Name = Name
-  { point :: Point
-  , raw   :: Text.Text
-  }
-
-instance Show Name where
-  show n = Text.unpack n.raw
-
-newtype VName = VName { name :: Name } deriving newtype (Show)
-newtype TName = TName { name :: Name } deriving newtype (Show)
-newtype CName = CName { name :: Name }
-newtype FName = FName { name :: Name } deriving newtype (Show)
-newtype MName = MName { name :: Name } deriving newtype (Show)
-
-instance Show CName where
-  show n = "#" <> show n.name
+-- instance Show CName where
+--   show n = "#" <> show n.name
 
 data Imported
-  = Typename TName
-  | Value    VName
+  = Typename Name
+  | Value    Name
 
 instance Show Imported where
   show = \case
@@ -54,8 +32,8 @@ instance Show Imported where
     Value    v -> show v
 
 data Import = Import
-  { point   :: Point
-  , module_ :: MName
+  { point   :: I
+  , module_ :: Name
   , items   :: [Imported]
   }
 
@@ -63,66 +41,84 @@ instance Show Import where
   show i = "import " <> show i.module_ <> " using (" <> punctuate ", " (map show i.items) <> ")"
 
 data Kind
-  = KVar   Point VName
-  | KStar  Point
-  | KArrow Point Kind Kind
+  = KStar  I
+  | KArrow I Kind Kind
 
 instance Show' Kind where
   show' p = \case
     KStar  _     -> "*"
     KArrow _ d c -> pr p 5 (show' 6 d <> " => " <> show' 5 c)
 
-data Type
-  = TVar   Point VName
-  | TConst Point TName
-  | TArrow Point Type Type
-  | TApp   Point Type Type
+data Type_ it
+  = TArrow_ I it it
+  | TApp_   I it it
+  deriving stock (Functor, Foldable, Traversable, Generic1)
+  deriving anyclass (Unifiable)
 
-instance Show' Type where
+type Type = Term Type_ Name
+
+pattern TArrow i d c = Struct (TArrow_ (Ign i) d c)
+pattern TApp   i d c = Struct (TApp_   (Ign i) d c)
+
+instance Show' (Type_ Type) => Show' Type where
   show' p = \case
-    TVar   _ v   -> show v
-    TConst _ t   -> show t
-    TArrow _ d c -> pr p 5 (show' 6 d <> " -> " <> show' 5 c)
-    TApp   _ f x -> pr p 4 (show' 4 f <> " "    <> show' 5 x)
+    Var    v -> show    v
+    Struct s -> show' p s
 
-data Scheme = Scheme
-  { point    :: Point
-  , typeVars :: [VName]
+instance Show' it => Show' (Type_ it) where
+  show' p = \case
+    TArrow_ _ d c -> pr p 5 (show' 6 d <> " -> " <> show' 5 c)
+    TApp_   _ f x -> pr p 4 (show' 4 f <> " "    <> show' 5 x)
+
+data Rank1 = Rank1
+  { point    :: I
+  , typeVars :: [Name]
   , body     :: Type
   , ctx      :: [Type]
   }
 
-instance Show Scheme where
+instance Show Rank1 where
   show s =
     if null s.typeVars
     then show s.body
     else "type " <> unwords (map show s.typeVars) <> ". " <> show s.body
       <> if null s.ctx then "" else " when " <> punctuate ", " (map show s.ctx)
 
-data TypeExpr
-  = Record Point [(FName, Type)]
-  | Union  Point [(CName, Type)]
+data TypeExpr_ it
+  = Record I [(Name, it)]
+  | Union  I [(Name, it)]
+  deriving stock (Functor, Foldable, Traversable)
+
+type TypeExpr = TypeExpr_ Type
 
 instance Show TypeExpr where
   show = \case
     Record _ fields -> "{" <> punctuate ", " (map semi fields) <> "}"
     Union  _ ctors  -> "<" <> punctuate ", " (map semi ctors)  <> ">"
 
+data TypeSig = TypeSig
+  { name :: Name
+  , kind :: Kind
+  }
+
+instance Show TypeSig where
+  show td = "kind " <> show td.name <> " : " <> show td.kind
+
 data TypeDecl = TypeDecl
-  { name     :: TName
-  , kindVars :: [(VName, Kind)]
+  { name     :: Name
+  , kindVars :: [Name]
   , body     :: TypeExpr
   }
 
 instance Show TypeDecl where
-  show td = "type " <> show td.name <> " " <> unwords (map semi td.kindVars) <> " =\n"
+  show td = "type " <> show td.name <> " " <> unwords (map show td.kindVars) <> " =\n"
     <> indent (show td.body)
     where
 
 data Constant
-  = I Point Integer
-  | F Point Double
-  | S Point Text.Text
+  = I I Integer
+  | F I Double
+  | S I Text.Text
 
 instance Show Constant where
   show = \case
@@ -131,10 +127,10 @@ instance Show Constant where
     S _ i -> show i
 
 data Pattern
-  = PVar   Point VName
-  | PCtor  Point CName VName
-  | PConst Point Constant
-  | PWild  Point
+  = PVar   I Name
+  | PCtor  I Name Name  -- ctor var
+  | PConst I Constant
+  | PWild  I
 
 instance Show Pattern where
   show = \case
@@ -144,7 +140,7 @@ instance Show Pattern where
     PWild  _     -> "_"
 
 data Alt = Alt
-  { point :: Point
+  { point :: I
   , pat   :: Pattern
   , body  :: Expr
   }
@@ -152,22 +148,31 @@ data Alt = Alt
 instance Show Alt where
   show alt = show alt.pat <> " -> " <> show alt.body
 
+data LocalDef
+  = LSig  Sig
+  | LDecl Decl
+
+instance Show LocalDef where
+  show = \case
+    LSig  s -> show s
+    LDecl s -> show s
+
 data Expr
-  = Let    Point [Decl] Expr
+  = Let    I [LocalDef] Expr
 
-  | App    Point Expr Expr
-  | Lambda Point [VName] Expr
+  | App    I Expr Expr
+  | Lambda I [Name] Expr
 
-  | Object Point [(FName, Expr)]
-  | Get    Point Expr FName
-  | Update Point Expr [(FName, Expr)]
+  | Object I [(Name, Expr)]
+  | Get    I Expr Name
+  | Update I Expr [(Name, Expr)]
 
-  | Symbol Point CName Expr
-  | Case   Point Expr [Alt]
+  | Symbol I Name Expr
+  | Case   I Expr [Alt]
 
-  | Var    Point VName
+  | EVar    I Name
 
-  | Const  Point Constant
+  | Const  I Constant
 
 instance Show' Expr where
   show' p = \case
@@ -179,23 +184,30 @@ instance Show' Expr where
     Update _ o fs -> "with " <> show o <> " {" <> punctuate ", " (map semi fs) <> "}"
     Symbol _ c x  -> show c <> " " <> show' 3 x
     Case   _ o as -> "case " <> show o <> " {\n" <> indent (punctuate ";\n" (map show as)) <> "}"
-    Var    _ v    -> show v
+    EVar    _ v    -> show v
     Const  _ c    -> show c
 
+data Sig = Sig
+  { name :: Name
+  , sig  :: Rank1
+  }
+
+instance Show Sig where
+  show d = "sig " <> show d.name <> " : " <> show d.sig
+
 data Decl = Decl
-  { name :: VName
-  , sig  :: Scheme
+  { name :: Name
   , body :: Expr
   }
 
 instance Show Decl where
-  show d = show d.name <> " : " <> show d.sig <> "\n... = " <> show d.body
+  show d = "val " <> show d.name <> " = " <> show d.body
 
 data KlassDecl = KlassDecl
-  { name   :: TName
-  , args   :: [VName]
+  { name   :: Name
+  , args   :: [Name]
   , deps   :: [Type]
-  , fields :: [(VName, Scheme)]
+  , fields :: [(Name, Rank1)]
   }
 
 instance Show KlassDecl where
@@ -205,10 +217,10 @@ instance Show KlassDecl where
     <> "}"
 
 data InstanceDecl = InstanceDecl
-  { point  :: Point
-  , header :: Type
+  { point  :: I
+  , header :: Rank1
   , deps   :: [Type]
-  , impls  :: [(VName, Expr)]
+  , impls  :: [(Name, Expr)]
   }
 
 instance Show InstanceDecl where
@@ -220,28 +232,24 @@ instance Show InstanceDecl where
       <> "}"
 
 data TopDecl
-  = TypeDecls Point [TypeDecl]
-  | Decls     Point [Decl]
-  | Klass     Point KlassDecl
-  | Instance  Point InstanceDecl
+  = ATypeSig  I TypeSig
+  | ATypeDecl I TypeDecl
+  | ADeclSig  I Sig
+  | ADecl     I Decl
+  | Klass     I KlassDecl
+  | Instance  I InstanceDecl
 
 instance Show TopDecl where
   show = \case
-    TypeDecls _ ds ->
-      "mutual {\n"
-        <> indent (unlines (map show ds))
-        <> "}\n"
-
-    Decls _ ds ->
-      "mutual {\n"
-        <> indent (unlines (map show ds))
-        <> "}\n"
-
-    Klass _ k -> show k
-    Instance _ i -> show i
+    ATypeSig  _ sig -> show sig <> "\n"
+    ATypeDecl _ d   -> show d   <> "\n"
+    ADeclSig  _ s   -> show s   <> "\n"
+    ADecl     _ d   -> show d   <> "\n"
+    Klass _ k -> show k <> "\n"
+    Instance _ i -> show i <> "\n"
 
 data Prog = Prog
-  { name    :: MName
+  { name    :: Name
   , imports :: [Import]
   , decls   :: [TopDecl]
   }

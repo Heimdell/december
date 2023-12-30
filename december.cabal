@@ -10,8 +10,15 @@ build-type:     Simple
 
 library
   exposed-modules:
-      AST
-      Parser
+      Ignored
+      Name
+      Pass.Parsing
+      Pass.ScopeCheck
+      Phase.Raw
+      Phase.Typed
+      Phase.Typed.Kind
+      Phase.Typed.Type
+      Show'
   other-modules:
       Paths_december
   hs-source-dirs:
@@ -31,6 +38,17 @@ library
       UndecidableInstances
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      DeriveAnyClass
+      DeriveTraversable
+      DeriveFoldable
+      DeriveGeneric
+      PatternSynonyms
+      DataKinds
+      RankNTypes
+      FlexibleContexts
+      TypeApplications
+      ConstraintKinds
+  ghc-options: -freverse-errors
   build-depends:
       base
     , containers
@@ -61,6 +79,17 @@ executable dec
       UndecidableInstances
       FlexibleInstances
       GeneralizedNewtypeDeriving
+      DeriveAnyClass
+      DeriveTraversable
+      DeriveFoldable
+      DeriveGeneric
+      PatternSynonyms
+      DataKinds
+      RankNTypes
+      FlexibleContexts
+      TypeApplications
+      ConstraintKinds
+  ghc-options: -freverse-errors
   build-depends:
       base
     , containers

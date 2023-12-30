@@ -1,15 +1,21 @@
 
-module Parser where
+module Pass.Parsing where
 
 import Data.Text qualified as Text
 import Data.Maybe
 
 import Text.Parser.Yard hiding (Expr)
+import Control.Unification
 
-import AST
+import Phase.Raw
+import Name
+import Ignored
+
+ctor' :: (Ign Point -> c) -> Parser c
+ctor' f = ctor (f . Ign)
 
 isReserved w = Text.unpack w ` elem` words
-  "let in type import mutual do using val case of record class instance when where with"
+  "let in type kind sig import mutual do using val case of record class instance when where with"
 
 space :: Parser ()
 space = space1
@@ -22,23 +28,29 @@ token = mkToken (void (many space))
 slug :: String -> Parser ()
 slug = token . try . string
 
-vname :: Parser VName
-tname :: Parser TName
-cname :: Parser CName
-fname :: Parser FName
-mname :: Parser MName
-vname = VName <$> token do           ctor Name <*> kebabLowerCase isReserved
-tname = TName <$> token do           ctor Name <*> kebabUpperCase isReserved
-mname = MName <$> token do           ctor Name <*> kebabUpperCase isReserved
-cname = CName <$> token do char '#'; ctor Name <*> kebabUpperCase isReserved
-fname = FName <$> token do           ctor Name <*> kebabLowerCase isReserved
+lname :: Parser Name
+lname = token do ctor' Name <*> kebabLowerCase isReserved <*> pure 0
+
+uname :: Parser Name
+uname = token do ctor' Name <*> kebabUpperCase isReserved <*> pure 0
+
+vname :: Parser Name
+tname :: Parser Name
+cname :: Parser Name
+fname :: Parser Name
+mname :: Parser Name
+vname = token    lname
+tname = token    uname
+mname = token    uname
+cname = token do char '#'; uname
+fname = token    lname
 
 imported :: Parser Imported
 imported = (Typename <$> tname) <|> (Value <$> vname)
 
 import_ :: Parser Import
 import_ = do
-  ctor Import
+  ctor' Import
     <*  slug "import"
     <*> mname
     <*  slug "using"
@@ -51,7 +63,7 @@ group p = slug "(" *> p <* slug ")"
 
 kind :: Parser Kind
 kind = do
-  p <- getPosition
+  p <- Ign <$> getPosition
   d <- kindTerm
   c <- optional do
     slug "=>"
@@ -59,8 +71,7 @@ kind = do
   return (foldr (flip (KArrow p)) d c)
   where
     kindTerm
-      =   ctor KStar <*  slug "*"
-      <|> ctor KVar  <*> vname
+      =   ctor' KStar <*  slug "*"
       <|> group kind
 
 type_ :: Parser Type
@@ -79,20 +90,20 @@ type_ = do
       return (foldl1 (TApp p) xs)
       where
         typeTerm = choose
-          [ ctor TVar   <*> vname
-          , ctor TConst <*> tname
+          [ Var <$> lname
+          , Var <$> uname
           , group type_
           ]
 
 option :: Alternative f => a -> f a -> f a
 option a ma = fromMaybe a <$> optional ma
 
-scheme :: Parser Scheme
+scheme :: Parser Rank1
 scheme = polytype <|> monotype
   where
-    monotype = ctor Scheme <*> pure [] <*> type_ <*> pure []
+    monotype = ctor' Rank1 <*> pure [] <*> type_ <*> pure []
     polytype =
-      ctor Scheme
+      ctor' Rank1
         <*  slug "type"
         <*> some vname
         <*  slug "."
@@ -105,13 +116,13 @@ typeExpr :: Parser TypeExpr
 typeExpr = record <|> union
   where
     record =
-      ctor Record
+      ctor' Record
         <*  slug "{"
         <*> do fieldDecl `sepBy` slug ","
         <*  slug "}"
 
     union =
-      ctor Union
+      ctor' Union
         <*  slug "<"
         <*> do ctorDecl  `sepBy` slug ","
         <*  slug ">"
@@ -128,43 +139,51 @@ typeExpr = record <|> union
       t <- type_
       return (c, t)
 
-kvar :: Parser (VName, Kind)
+kvar :: Parser (Name, Kind)
 kvar = group do
   v <- vname
   _ <- slug ":"
   k <- kind
   return (v, k)
 
+typeSig :: Parser TypeSig
+typeSig = do
+  pure TypeSig
+    <*  slug "kind"
+    <*> tname
+    <*  slug ":"
+    <*> kind
+
 typeDecl :: Parser TypeDecl
 typeDecl = do
   pure TypeDecl
     <*  slug "type"
     <*> tname
-    <*> many kvar
+    <*> many vname
     <*  slug "="
     <*> typeExpr
 
 constant :: Parser Constant
 constant = token do
-      ctor (\p -> either (F p) (I p)) <*> number
-  <|> ctor S <* char '\'' <*> stringLiteral defaultCharEscapes "\'" <* char '\''
+      ctor' (\p -> either (F p) (I p)) <*> number
+  <|> ctor' S <* char '\'' <*> stringLiteral defaultCharEscapes "\'" <* char '\''
 
 pattern_ :: Parser Pattern
 pattern_ = choose
-  [ ctor PCtor  <*> cname <*> vname
-  , ctor PVar   <*> vname
-  , ctor PConst <*> constant
-  , ctor PWild  <*  slug "_"
+  [ ctor' PCtor  <*> cname <*> vname
+  , ctor' PVar   <*> vname
+  , ctor' PConst <*> constant
+  , ctor' PWild  <*  slug "_"
   ]
 
 alt :: Parser Alt
 alt = do
-  ctor Alt
+  ctor' Alt
     <*> pattern_
     <*  slug "->"
     <*> expr
 
-fieldAssign :: Parser (FName, Expr)
+fieldAssign :: Parser (Name, Expr)
 fieldAssign = do
   pure (,) <*> fname <* slug "=" <*> expr
 
@@ -172,19 +191,19 @@ expr :: Parser Expr
 expr = letExpr <|> appExpr
   where
     letExpr = do
-      ctor Let
+      ctor' Let
         <*  slug "let"
-        <*> do decl `sepBy1` slug ","
+        <*> do localDef `sepBy1` slug ","
         <*  slug ";"
         <*> expr
 
     appExpr = do
-      p   <- getPosition
+      p   <- Ign <$> getPosition
       fxs <- some getExpr
       return (foldl1 (App p) fxs)
 
     getExpr = do
-      p <- getPosition
+      p <- Ign <$> getPosition
       t <- termExpr
       fs <- many do
         slug "."
@@ -192,18 +211,18 @@ expr = letExpr <|> appExpr
       return (foldl (Get p) t fs)
 
     termExpr = choose
-      [ ctor Lambda
+      [ ctor' Lambda
           <*     slug "\\"
           <*> do vname `sepBy1` slug ","
           <*     slug "->"
           <*>    expr
 
-      , ctor Object
+      , ctor' Object
           <*     slug "{"
           <*> do fieldAssign `sepBy` slug ","
           <*     slug "}"
 
-      , ctor Update
+      , ctor' Update
           <*     slug "with"
           <*>    expr
           <*     slug "do"
@@ -211,11 +230,11 @@ expr = letExpr <|> appExpr
           <*> do fieldAssign `sepBy` slug ","
           <*     slug "}"
 
-      , ctor Symbol
+      , ctor' Symbol
           <*> cname
           <*> termExpr
 
-      , ctor Case
+      , ctor' Case
           <*  slug "case"
           <*> expr
           <*  slug "of"
@@ -223,23 +242,31 @@ expr = letExpr <|> appExpr
           <*> do alt `sepBy` slug ";"
           <*  slug "}"
 
-      , ctor Var
+      , ctor' EVar
           <*> vname
 
-      , ctor Const
+      , ctor' Const
           <*> constant
 
       , group expr
       ]
+
+localDef :: Parser LocalDef
+localDef = (LSig <$> sig) <|> (LDecl <$> decl)
+
+sig :: Parser Sig
+sig = do
+  pure Sig
+    <*  slug "sig"
+    <*> vname
+    <*  slug ":"
+    <*> scheme
 
 decl :: Parser Decl
 decl = do
   pure Decl
     <*  slug "val"
     <*> vname
-    <*  slug ":"
-    <*> scheme
-    <*  optional (slug "...")
     <*  slug "="
     <*> expr
 
@@ -262,9 +289,9 @@ klassDecl = do
 
 instanceDecl :: Parser InstanceDecl
 instanceDecl = do
-  ctor InstanceDecl
+  ctor' InstanceDecl
     <*  slug "instance"
-    <*> type_
+    <*> scheme
     <*> option [] do
       slug "when"
       do type_ `sepBy` slug ","
@@ -277,19 +304,14 @@ instanceDecl = do
     <*  slug "}"
 
 topDecl :: Parser TopDecl
-topDecl = mutual <|> klass <|> instonce <|> tdecl <|> vdecl
-  where
-    mutual = do
-      slug "mutual"
-      slug "{"
-      res <- (ctor TypeDecls <*> some typeDecl) <|> (ctor Decls <*> some decl)
-      slug "}"
-      return res
-
-    klass    = ctor Klass     <*> klassDecl
-    instonce = ctor Instance  <*> instanceDecl
-    tdecl    = ctor TypeDecls <*> (pure <$> typeDecl)
-    vdecl    = ctor Decls     <*> (pure <$> decl)
+topDecl = choose
+  [ ctor' Klass     <*> klassDecl
+  , ctor' Instance  <*> instanceDecl
+  , ctor' ATypeDecl <*> typeDecl
+  , ctor' ATypeSig  <*> typeSig
+  , ctor' ADecl     <*> decl
+  , ctor' ADeclSig  <*> sig
+  ]
 
 prog :: Parser Prog
 prog =

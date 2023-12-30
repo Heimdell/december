@@ -38,7 +38,7 @@ packages:
 extra-deps:
 # - acme-missiles-0.3
 - git: https://github.com/Heimdell/yard.git
-  commit: b6799727e6d633b0af211de7aefa21b6b7f453e0
+  commit: 023505a0f2fe5e09cff3e687e391ab07e80d26f1
 - git: https://github.com/Heimdell/unification-xd.git
   commit: def0b94a5831e1738451370704b37c173652c6c9
 #

@@ -6,6 +6,8 @@ module Example where
 -}
 import Data-Maybe using (Maybe, from-just, maybe)
 import Data-Bool  using (Bool, if)
+import Data-Int   using (Int)
+import Data-Pair  using (Pair, plus, minus)
 
 -- Single function
 --
@@ -21,9 +23,9 @@ val const = \y, x -> x
 -- Mutually-recursive block
 --
 sig f : Int -> Int
-val f = \x -> g x
-
 sig g : Int -> Int
+
+val f = \x -> g x
 val g = \x -> f x
 
 {-
@@ -78,7 +80,7 @@ class Action m a when
 
 -- Instance
 --
-instance Ord (Pair a b) when
+instance type a b. Ord (Pair a b) when
   Ord a, Ord b
 {
   cmp = \a, b -> mappend (cmp a.fst b.fst) (cmp a.snd b.snd);
@@ -94,8 +96,8 @@ type Fix f = {
 
 -- Local let-rec
 --
-sig foo : Int
-val foo =
+sig foo : Int -> Int -> Int
+val foo = \x, y ->
   let
     sig f : Int,
     sig g : Int,
@@ -115,14 +117,14 @@ val obj =
 -- Record Update
 --
 sig subj : Int
-val subj = with obj do
+val subj = \a -> with obj do
   { bar = minus 3
   , foo = a.get  -- record access
   }
 
 -- Usage of #-constructors
 --
-sig list : List Int
+sig list : Many Int
 val list = #Cons
   { head = 1
   , tail = #Nil {}

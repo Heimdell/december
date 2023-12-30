@@ -16,6 +16,16 @@ default-extensions:
 - UndecidableInstances
 - FlexibleInstances
 - GeneralizedNewtypeDeriving
+- DeriveAnyClass
+- DeriveTraversable
+- DeriveFoldable
+- DeriveGeneric
+- PatternSynonyms
+- DataKinds
+- RankNTypes
+- FlexibleContexts
+- TypeApplications
+- ConstraintKinds
 
 dependencies:
 - base
@@ -28,6 +38,8 @@ dependencies:
 
 library:
   source-dirs: src
+
+ghc-options: -freverse-errors
 
 executables:
   dec:

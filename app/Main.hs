@@ -2,6 +2,7 @@
 import Phase.Raw
 import Pass.Parsing
 import Pass.ScopeCheck
+import Pass.TypeCheck (runTC, typeCheckAndDump)
 import Text.Parser.Yard.Run (parseFile)
 
 import System.Environment

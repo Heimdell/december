@@ -11,17 +11,6 @@ import Show'
 import Name
 import Ignored
 
--- newtype VName = VName { name :: Name } deriving newtype (Show)
--- newtype TName = TName { name :: Name } deriving newtype (Show)
--- newtype CName = CName { name :: Name }
--- newtype FName = FName { name :: Name } deriving newtype (Show)
--- newtype MName = MName { name :: Name } deriving newtype (Show)
-
-type I = Ign Point
-
--- instance Show CName where
---   show n = "#" <> show n.name
-
 data Imported
   = Typename Name
   | Value    Name
@@ -49,26 +38,15 @@ instance Show' Kind where
     KStar  _     -> "*"
     KArrow _ d c -> pr p 5 (show' 6 d <> " => " <> show' 5 c)
 
-data Type_ it
-  = TArrow_ I it it
-  | TApp_   I it it
-  deriving stock (Functor, Foldable, Traversable, Generic1)
-  deriving anyclass (Unifiable)
+data Type
+  = TArrow I Type Type
+  | TApp   I Type Type
+  | TConst I Name
 
-type Type = Term Type_ Name
-
-pattern TArrow i d c = Struct (TArrow_ (Ign i) d c)
-pattern TApp   i d c = Struct (TApp_   (Ign i) d c)
-
-instance Show' (Type_ Type) => Show' Type where
+instance Show' Type where
   show' p = \case
-    Var    v -> show    v
-    Struct s -> show' p s
-
-instance Show' it => Show' (Type_ it) where
-  show' p = \case
-    TArrow_ _ d c -> pr p 5 (show' 6 d <> " -> " <> show' 5 c)
-    TApp_   _ f x -> pr p 4 (show' 4 f <> " "    <> show' 5 x)
+    TArrow _ d c -> pr p 5 (show' 6 d <> " -> " <> show' 5 c)
+    TApp   _ f x -> pr p 4 (show' 4 f <> " "    <> show' 5 x)
 
 data Rank1 = Rank1
   { point    :: I
@@ -84,12 +62,9 @@ instance Show Rank1 where
     else "type " <> unwords (map show s.typeVars) <> ". " <> show s.body
       <> if null s.ctx then "" else " when " <> punctuate ", " (map show s.ctx)
 
-data TypeExpr_ it
-  = Record I [(Name, Term Type_ it)]
-  | Union  I [(Name, Term Type_ it)]
-  deriving stock (Functor, Foldable, Traversable)
-
-type TypeExpr = TypeExpr_ Name
+data TypeExpr
+  = Record I [(Name, Type)]
+  | Union  I [(Name, Type)]
 
 instance Show TypeExpr where
   show = \case
@@ -127,17 +102,11 @@ instance Show Constant where
     S _ i -> show i
 
 data Pattern
-  = PVar   I Name
-  | PCtor  I Name Name  -- ctor var
-  | PConst I Constant
-  | PWild  I
+  = PCtor  I Name Name  -- ctor var
 
 instance Show Pattern where
   show = \case
-    PVar   _   v -> show v
     PCtor  _ s v -> show s <> " " <> show v
-    PConst _   c -> show c
-    PWild  _     -> "_"
 
 data Alt = Alt
   { point :: I

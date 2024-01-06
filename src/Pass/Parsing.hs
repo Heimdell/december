@@ -76,7 +76,7 @@ kind = do
 
 type_ :: Parser Type
 type_ = do
-  p <- getPosition
+  p <- Ign <$> getPosition
   d <- typeApp
   c <- optional do
     slug "->"
@@ -85,13 +85,13 @@ type_ = do
   where
     typeApp :: Parser Type
     typeApp = do
-      p  <- getPosition
+      p  <- Ign <$> getPosition
       xs <- some typeTerm
       return (foldl1 (TApp p) xs)
       where
         typeTerm = choose
-          [ Var <$> lname
-          , Var <$> uname
+          [ TConst <$> (Ign <$> getPosition) <*> lname
+          , TConst <$> (Ign <$> getPosition) <*> uname
           , group type_
           ]
 
@@ -171,9 +171,6 @@ constant = token do
 pattern_ :: Parser Pattern
 pattern_ = choose
   [ ctor' PCtor  <*> cname <*> vname
-  , ctor' PVar   <*> vname
-  , ctor' PConst <*> constant
-  , ctor' PWild  <*  slug "_"
   ]
 
 alt :: Parser Alt

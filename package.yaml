@@ -26,6 +26,7 @@ default-extensions:
 - FlexibleContexts
 - TypeApplications
 - ConstraintKinds
+- OverloadedStrings
 
 dependencies:
 - base

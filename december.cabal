@@ -15,9 +15,22 @@ library
       Pass.Parsing
       Pass.ScopeCheck
       Pass.TypeCheck
+      Pass.TypeCheck.Classes
+      Pass.TypeCheck.Expr
+      Pass.TypeCheck.Kind
+      Pass.TypeCheck.Toplevel
+      Pass.TypeCheck.Type
       Phase.Raw
+      Phase.Raw.Classes
+      Phase.Raw.Expr
+      Phase.Raw.Kind
+      Phase.Raw.Toplevel
+      Phase.Raw.Type
       Phase.Typed
+      Phase.Typed.Classes
+      Phase.Typed.Expr
       Phase.Typed.Kind
+      Phase.Typed.Toplevel
       Phase.Typed.Type
       Show'
   other-modules:
@@ -49,6 +62,7 @@ library
       FlexibleContexts
       TypeApplications
       ConstraintKinds
+      OverloadedStrings
   ghc-options: -freverse-errors
   build-depends:
       base
@@ -90,6 +104,7 @@ executable dec
       FlexibleContexts
       TypeApplications
       ConstraintKinds
+      OverloadedStrings
   ghc-options: -freverse-errors
   build-depends:
       base

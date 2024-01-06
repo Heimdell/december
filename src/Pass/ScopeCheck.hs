@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-ambiguous-fields #-}
 
 module Pass.ScopeCheck where
 
@@ -106,7 +107,20 @@ checkName lens name = do
     Nothing    -> throw (Undefined name)
 
 checkType :: CanSC r => Type -> Sem r Type
-checkType = traverse (checkName typesL)
+checkType = \case
+  TConst i n -> do
+    n <- checkName typesL n
+    return (TConst i n)
+
+  TArrow i d c -> do
+    d <- checkType d
+    c <- checkType c
+    return (TArrow i d c)
+
+  TApp i f x -> do
+    f <- checkType f
+    x <- checkType x
+    return (TApp i f x)
 
 checkRank1 :: CanSC r => Rank1 -> Sem r Rank1
 checkRank1 rank1 = do
@@ -120,7 +134,9 @@ checkRank1 rank1 = do
       }
 
 checkTypeExpr :: CanSC r => TypeExpr -> Sem r TypeExpr
-checkTypeExpr = traverse (checkName typesL)
+checkTypeExpr = \case
+  Union  i fs -> Union  i <$> (traverse . traverse) checkType fs
+  Record i fs -> Record i <$> (traverse . traverse) checkType fs
 
 checkTypeSig :: CanSC r => TypeSig -> (TypeSig -> Sem r a) -> Sem r a
 checkTypeSig tsig ret = do
@@ -141,16 +157,9 @@ checkTypeDecl tdecl = do
 checkPattern :: CanSC r => Pattern -> (Pattern -> Sem r a) -> Sem r a
 checkPattern pat ret =
   case pat of
-    PVar i v -> do
-      withName valuesL v \v -> do
-        ret (PVar i v)
-
     PCtor i c v -> do
       withName valuesL v \v -> do
         ret (PCtor i c v)
-
-    PConst i c -> ret (PConst i c)
-    PWild  i   -> ret (PWild  i)
 
 checkAlt :: CanSC r => Alt -> Sem r Alt
 checkAlt alt = do

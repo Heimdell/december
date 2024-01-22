@@ -20,8 +20,8 @@ isReserved w = Text.unpack w ` elem` words
 
 space :: Parser ()
 space = space1
-  <|> lineComment "--"
-  <|> blockComment "{-" "-}"
+  <|> lineComment "//"
+  <|> blockComment "/*" "*/"
 
 token :: Parser a -> Parser a
 token = mkToken (void (many space))

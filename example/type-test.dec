@@ -1,64 +1,113 @@
 
 module Type-check where
 
+/*
+  Function signatures.
+  They add those functions into the context.
+*/
 sig id    : type a.   a -> a
 sig const : type a b. b -> a -> a
 
+/*
+  Function bodies. Must be somewhere below the signature.
+*/
 val id    = \x    -> x
 val const = \y, x -> x
 
+/*
+  Signature and declaration of type.
+*/
 kind Unit : *
 type Unit = {}
 
+/*
+  Here we check that "id" is really polymorphic.
+*/
 sig u : Unit
 val u = (id id) {}
 
-kind Or : * => * => *
+/*
+  Type constructor signatures. Both have 2 generic parameters
+  that have to be plain types.
+
+  Can be partially applied.
+*/
+kind Or  : * => * => *
+kind And : * => * => *
+
+/*
+  Sum type.
+*/
 type Or a b =
-  < %Left  : a
+  < %Left  : a  // Sums are comprised of the tag/type pairs.
   , %Right : b
   >
 
-kind And : * => * => *
+/*
+  Product type.
+*/
 type And a b =
-  { fst : a
+  { fst : a  // Products are made from field/type pairs.
   , snd : b
   }
 
+/*
+  High-order functions.
+*/
 sig bimap-Or  : type a b c d. (a -> b) -> (c -> d) -> Or  a c -> Or  b d
 sig bimap-And : type a b c d. (a -> b) -> (c -> d) -> And a c -> And b d
 
 val bimap-Or = \f, g, or ->
-  case or of {
-    %Left  a -> %Left  (f a);
+  case or of {                 // case-split must use all constructors of type
+    %Left  a -> %Left  (f a);  // in any order
     %Right a -> %Right (g a)
   }
 
 val bimap-And = \f, g, and ->
-  { fst = f and.fst
+  { fst = f and.fst  // record construction
   , snd = g and.snd
   }
 
+/*
+  Non-empty list (Some) and potentially-empty-list (Many).
+
+  Notice that we can only use structure of type below its /declaration/,
+  not below its signature.
+
+  Also, their implementation is mutually-recursive.
+*/
 kind Some : * => *
 kind Many : * => *
 
-type Some a = {  head : a,     tail : Many a }
-type Many a = < %Nil  : Unit, %Cons : Some a >
-
+/*
+  Signatures for two mutually-recusive functions.
+*/
 sig map-some : type a b. (a -> b) -> Some a -> Some b
 sig map-many : type a b. (a -> b) -> Many a -> Many b
 
+/*
+  We can't wait any longer, map-some/map-many will use fields/tags of Some/Many.
+*/
+type Some a = {  head : a,     tail : Many a }
+type Many a = < %Nil  : Unit, %Cons : Some a >
+
+// We also have record updates. Sadly, they are not polymorphic - yet, I hope.
 val map-some = \f, some ->
   { head = f some.head
   , tail = map-many f some.tail
+  //       ^-- recure
   }
 
 val map-many = \f, many ->
   case many of {
     %Cons xs -> %Cons (map-some f xs);
+    //                 ^-- recure
     %Nil  u  -> %Nil u
   }
 
+/*
+  Right fold.
+*/
 sig fold-some-r : type a b. (a -> b -> b) -> b -> Some a -> b
 sig fold-many-r : type a b. (a -> b -> b) -> b -> Many a -> b
 
@@ -72,15 +121,34 @@ val fold-many-r = \f, z, xs ->
 sig p : And Unit Unit
 val p = {fst = {}, snd = {}}
 
+sig q : And Unit Unit
+val q = with p do { fst = {} }
+
+/*
+  Function composition.
+*/
 sig o : type a b c. (a -> b) -> (b -> c) -> (a -> c)
 val o = \f, g, x -> g (f x)
 
+/*
+  Function as a profunctor (dimap).
+*/
 sig dimap-fun : type a b c d. (a -> b) -> (c -> d) -> (b -> c) -> a -> d
 val dimap-fun = \f, g, fun -> o f (o fun g)
 
 kind Pair : * => *
-type Pair a = { fst : a, snd : a }
+type Pair a =
+  { fst : a  // notice: type "And" also have fields "fst"/"snd"
+  , snd : a
+  }
 
+/*
+  Perfectly balanced tree.
+
+  Notice that Bin-Tree type is recursive with different generic parameters.
+
+  That works.
+*/
 kind Bin-Tree : * => *
 type Bin-Tree a =
   < %Leaf   : a
@@ -97,10 +165,41 @@ val map-Bin-Tree = \f, tree ->
     %Branch tree -> %Branch (map-Bin-Tree (map-Pair f) tree)
   }
 
+/*
+  Tags (or "constructors") are polymorphic as well.
+
+  They also always typechecked, we can't synthetize types from them.
+
+  Same is true for record fields.
+*/
+sig two-tree : type a. a -> Bin-Tree a
+val two-tree = \a ->
+  %Branch
+    (%Branch
+      (%Leaf
+        { fst =
+          { fst = a
+          , snd = a
+          }
+        , snd =
+          { fst = a
+          , snd = a
+          }
+        }))
+
+/*
+  Higher-kinded types are also supported.
+*/
 kind Fix : (* => *) => *
 type Fix f = { un-fix : f (Fix f) }
 
+/*
+  Typeclasses are broken and not here yet, so this will do.
+*/
 sig clutch-fmap : type a b f. (a -> b) -> f a -> f b
 
+/*
+  Generalized fold over a fixpoint.
+*/
 sig cata : type a b f. (f a -> a) -> Fix f -> a
 val cata = \alg, f -> alg (clutch-fmap (cata alg) f.un-fix)

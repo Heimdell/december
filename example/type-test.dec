@@ -1,7 +1,7 @@
 
 module Type-check where
 
-sig id    : type a. a -> a
+sig id    : type a.   a -> a
 sig const : type a b. b -> a -> a
 
 val id    = \x    -> x
@@ -15,8 +15,8 @@ val u = (id id) {}
 
 kind Or : * => * => *
 type Or a b =
-  < #Left  : a
-  , #Right : b
+  < %Left  : a
+  , %Right : b
   >
 
 kind And : * => * => *
@@ -25,11 +25,25 @@ type And a b =
   , snd : b
   }
 
+sig bimap-Or  : type a b c d. (a -> b) -> (c -> d) -> Or  a c -> Or  b d
+sig bimap-And : type a b c d. (a -> b) -> (c -> d) -> And a c -> And b d
+
+val bimap-Or = \f, g, or ->
+  case or of {
+    %Left  a -> %Left  (f a);
+    %Right a -> %Right (g a)
+  }
+
+val bimap-And = \f, g, and ->
+  { fst = f and.fst
+  , snd = g and.snd
+  }
+
 kind Some : * => *
 kind Many : * => *
 
 type Some a = {  head : a,     tail : Many a }
-type Many a = < #Nil  : Unit, #Cons : Some a >
+type Many a = < %Nil  : Unit, %Cons : Some a >
 
 sig map-some : type a b. (a -> b) -> Some a -> Some b
 sig map-many : type a b. (a -> b) -> Many a -> Many b
@@ -41,6 +55,52 @@ val map-some = \f, some ->
 
 val map-many = \f, many ->
   case many of {
-    #Cons xs -> #Cons (map-some f xs);
-    #Nil  u  -> #Nil u
+    %Cons xs -> %Cons (map-some f xs);
+    %Nil  u  -> %Nil u
   }
+
+sig fold-some-r : type a b. (a -> b -> b) -> b -> Some a -> b
+sig fold-many-r : type a b. (a -> b -> b) -> b -> Many a -> b
+
+val fold-some-r = \f, z, xs -> f xs.head (fold-many-r f z xs.tail)
+val fold-many-r = \f, z, xs ->
+  case xs of {
+    %Cons xs -> fold-some-r f z xs;
+    %Nil  u  -> z
+  }
+
+sig p : And Unit Unit
+val p = {fst = {}, snd = {}}
+
+sig o : type a b c. (a -> b) -> (b -> c) -> (a -> c)
+val o = \f, g, x -> g (f x)
+
+sig dimap-fun : type a b c d. (a -> b) -> (c -> d) -> (b -> c) -> a -> d
+val dimap-fun = \f, g, fun -> o f (o fun g)
+
+kind Pair : * => *
+type Pair a = { fst : a, snd : a }
+
+kind Bin-Tree : * => *
+type Bin-Tree a =
+  < %Leaf   : a
+  , %Branch : Bin-Tree (Pair a)
+  >
+
+sig map-Pair     : type a b. (a -> b) -> Pair     a -> Pair    b
+sig map-Bin-Tree : type a b. (a -> b) -> Bin-Tree a -> Bin-Tree b
+
+val map-Pair = \f, pair -> { fst = f pair.fst, snd = f pair.snd }
+val map-Bin-Tree = \f, tree ->
+  case tree of {
+    %Leaf   a    -> %Leaf   (f a);
+    %Branch tree -> %Branch (map-Bin-Tree (map-Pair f) tree)
+  }
+
+kind Fix : (* => *) => *
+type Fix f = { un-fix : f (Fix f) }
+
+sig clutch-fmap : type a b f. (a -> b) -> f a -> f b
+
+sig cata : type a b f. (f a -> a) -> Fix f -> a
+val cata = \alg, f -> alg (clutch-fmap (cata alg) f.un-fix)

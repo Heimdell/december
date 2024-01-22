@@ -287,7 +287,7 @@ acceptDecl (I.Decl name body) k = do
   -- traceShowM "ka"
   (ty,   ctxs)  <- makeRigid sc
   -- traceShowM "ay"
-  (body, ctxs') <- checkTypeOfExpr ty0.body body
+  (body, ctxs') <- checkTypeOfExpr ty body
   -- traceShowM "y?"
   ty0.body =:= ty
   -- TODO: Solve constraints!

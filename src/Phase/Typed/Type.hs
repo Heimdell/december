@@ -60,7 +60,7 @@ instance Show' n => Show' (Type_ n) where
   show' p = \case
     TArrow_ d c -> pr p 5 (show' 6 d <> " -> " <> show' 5 c)
     TApp_   f x -> pr p 4 (show' 4 f <> " "    <> show' 5 x)
-    TConst_ n   -> "#" <> show n
+    TConst_ n   -> show n
 
 -- substitute :: [(TVar_, Type)] -> Type -> Type
 -- substitute ctx = go

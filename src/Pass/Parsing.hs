@@ -44,7 +44,7 @@ tuname :: Parser TUName
 vname = VName <$> token    lname
 tname = TName <$> token    uname
 mname = MName <$> token    uname
-cname = CName <$> token do char '#'; uname
+cname = CName <$> token do char '%'; uname
 fname = FName <$> token    lname
 tuname = (TUName . TName) <$> lname
 

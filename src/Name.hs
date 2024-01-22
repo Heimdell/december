@@ -17,7 +17,8 @@ data Name = Name
   deriving stock (Eq, Ord)
 
 instance Show' Name where
-  show' _ n = Text.unpack n.raw <> if n.index /= 0 then "'" <> show n.index else ""
+  show' _ n = Text.unpack n.raw
+  -- show' _ n = Text.unpack n.raw <> if n.index /= 0 then "'" <> show n.index else ""
 
 updateName :: Name -> Name
 updateName n = n { index = 1 + n.index }
@@ -31,7 +32,7 @@ newtype MName = MName { name :: Name } deriving newtype (Eq, Ord, Show')
 newtype TUName = TUName { name :: TName } deriving newtype (Eq, Ord, IsName)
 
 instance Show' CName where
-  show' _ n = "#" <> show n.name
+  show' _ n = "%" <> show n.name
 
 instance Show' TUName where
   show' _ n = "'" <> show n.name

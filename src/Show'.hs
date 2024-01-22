@@ -27,7 +27,7 @@ instance (Show' a, Show' b) => Show' (Map.Map a b) where
   show' _ m = m
     & Map.toList
     & map semi
-    & punctuate ",\n"
+    & punctuate ", "
 
 instance (Show' a, Show' b) => Show' (a, b) where
   show' _ (a, b) = show' 0 a <> " -> " <> show' 0 b

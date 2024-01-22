@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant return" #-}
 
 module Pass.TypeCheck.Expr where
 
@@ -26,7 +28,7 @@ import Debug.Trace
 import Name
 import Ignored
 import qualified Data.Text as Text
-import Control.Monad (unless)
+import Control.Monad
 import Text.Parser.Yard.Report
 import Show'
 
@@ -126,7 +128,7 @@ ctorsOf pt ty = do
   Scheme tvs struct <- getTypeStructure f
   case struct of
     O.Record _   -> throw (IsNotUnion ty pt)
-    O.Union  map -> return (fmap (substitute (zip tvs xs)) map)
+    O.Union  map -> return (fmap (substituteTVars (zip tvs xs)) map)
 
 fieldsOf :: CanTCExprs r => I -> O.Type -> Sem r (Map.Map FName O.Type)
 fieldsOf pt ty = do
@@ -135,10 +137,10 @@ fieldsOf pt ty = do
   Scheme tvs struct <- getTypeStructure f
   case struct of
     O.Union  _   -> throw (IsNotUnion ty pt)
-    O.Record map -> return (fmap (substitute (zip tvs xs)) map)
+    O.Record map -> return (fmap (substituteTVars (zip tvs xs)) map)
 
 newTVar :: CanTCExprs r => I -> Text.Text -> Sem r O.Type
-newTVar i n = Var <$> refresh (TVar_ (TName (Name i n 0)))
+newTVar i n = Var <$> refresh (TVar_ (TUName (TName (Name i n 0))))
 
 monotype :: O.Type -> O.Rank1
 monotype ty = Scheme [] (Rank1Base ty [])
@@ -153,9 +155,16 @@ checkTypeOfExpr
       )
 checkTypeOfExpr ty = \case
   I.EVar i v -> do
+    -- scs <- ask @Schemes
+    -- when (not (Map.member v scs)) do
+    --   error (show (scs, v))
+    -- traceShowM ("expr", scs, v)
     rank1              <- asks @Schemes (Map.! v)  -- get type scheme
+    -- traceShowM ("expr", rank1)
     Rank1Base body ctx <- instantiate rank1        -- instantiate unto type
+    -- traceShowM ("expr", body, ctx)
     body =:= ty                                    -- check against ideal
+    -- traceShowM ("expr", "at")
     return (O.EVar v ::: body, Set.fromList ctx)
 
   I.App i f x -> do
@@ -268,15 +277,23 @@ acceptDecl
   -> (O.Decl -> Sem r a)
   -> Sem r a
 acceptDecl (I.Decl name body) k = do
+  -- scs <- ask @Schemes
+  -- when (not (Map.member name scs)) do
+  --   error (show (scs, name))
+  -- traceShowM (show (scs, name))
   sc <- asks @Schemes (Map.! name)
+  -- traceShowM "ok"
   ty0           <- instantiate sc
+  -- traceShowM "ka"
   (ty,   ctxs)  <- makeRigid sc
+  -- traceShowM "ay"
   (body, ctxs') <- checkTypeOfExpr ty0.body body
+  -- traceShowM "y?"
   ty0.body =:= ty
   -- TODO: Solve constraints!
-  traceShowM ("ENTER", name, ctxs')
+  -- traceShowM ("ENTER", name, sc)
   r <- k (O.Decl name body)
-  traceShowM ("EXIT ", name, ctxs')
+  -- traceShowM ("EXIT ", name, ctxs')
   return r
 
 acceptSig
@@ -286,6 +303,8 @@ acceptSig
   -> Sem r a
 acceptSig (I.Sig name sc) k = do
   sc <- checkKindOfRank1 sc
+  -- traceShowM ("SIG", name, sc)
+  -- error "TODO: make that tyvars in schemes are Vars, not Consts"
   withSchemes [(name, sc)] do
     k (O.Sig name sc)
 
@@ -305,7 +324,7 @@ makeRigid :: CanTCExprs r => O.Rank1 -> Sem r (O.Type, [O.Type])
 makeRigid (Scheme vs (Rank1Base b ctx)) = do
   rs <- for vs \v -> do
     v' <- refresh v
-    return (v, O.TConst v'.name)
+    return (v, O.TConst v'.name.name)
 
   let act = substituteTVars rs
 

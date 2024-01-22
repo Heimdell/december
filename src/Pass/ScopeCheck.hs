@@ -2,6 +2,7 @@
 
 module Pass.ScopeCheck where
 
+import Data.Coerce
 import Data.Map qualified as Map
 import Data.Traversable
 import Data.Function ((&))
@@ -82,29 +83,22 @@ renew lens name ctx =
       , name''
       )
 
--- renewAll :: Selector -> [Name] -> Context -> (Context, [Name])
--- renewAll _    []       ctx = (ctx, [])
--- renewAll lens (n : ns) ctx =
---   let (ctx',  n')  = renew    lens n  ctx  in
---   let (ctx'', ns') = renewAll lens ns ctx' in
---   (ctx'', n' : ns')
-
-withName :: CanSC r => Selector -> Name -> (Name -> Sem r a) -> Sem r a
+withName :: (Coercible n Name, CanSC r) => Selector -> n -> (n -> Sem r a) -> Sem r a
 withName lens n ret = do
   ctx <- ask
-  let (ctx', name') = renew lens n ctx
+  let (ctx', name') = renew lens (coerce n) ctx
   local (const ctx') do
-    ret name'
+    ret (coerce name')
 
-withNames :: CanSC r => Selector -> [Name] -> ([Name] -> Sem r a) -> Sem r a
+withNames :: (Coercible n Name, CanSC r) => Selector -> [n] -> ([n] -> Sem r a) -> Sem r a
 withNames lens = traverse' (withName lens)
 
-checkName :: CanSC r => Selector -> Name -> Sem r Name
+checkName :: (Coercible n Name, CanSC r) => Selector -> n -> Sem r n
 checkName lens name = do
   renamer <- asks lens.get
-  case Map.lookup name renamer of
-    Just found -> return found
-    Nothing    -> throw (Undefined name)
+  case Map.lookup (coerce name) renamer of
+    Just found -> return (coerce found)
+    Nothing    -> throw (Undefined (coerce name))
 
 checkType :: CanSC r => Type -> Sem r Type
 checkType = \case
@@ -122,6 +116,10 @@ checkType = \case
     x <- checkType x
     return (TApp i f x)
 
+  TVar i n -> do
+    n <- checkName typesL n
+    return (TVar i n)
+
 checkRank1 :: CanSC r => Rank1 -> Sem r Rank1
 checkRank1 rank1 = do
   withNames typesL rank1.typeVars \tvars -> do
@@ -135,8 +133,8 @@ checkRank1 rank1 = do
 
 checkTypeExpr :: CanSC r => TypeExpr -> Sem r TypeExpr
 checkTypeExpr = \case
-  Union  i fs -> Union  i <$> (traverse . traverse) checkType fs
-  Record i fs -> Record i <$> (traverse . traverse) checkType fs
+  Union  i fs -> Union  i <$> traverse checkType fs
+  Record i fs -> Record i <$> traverse checkType fs
 
 checkTypeSig :: CanSC r => TypeSig -> (TypeSig -> Sem r a) -> Sem r a
 checkTypeSig tsig ret = do
@@ -146,26 +144,19 @@ checkTypeSig tsig ret = do
 checkTypeDecl :: CanSC r => TypeDecl -> Sem r TypeDecl
 checkTypeDecl tdecl = do
   name <- checkName typesL tdecl.name
-  withNames typesL tdecl.kindVars \kindVars -> do
+  withNames typesL tdecl.typeVars \typeVars -> do
     body <- checkTypeExpr tdecl.body
     return tdecl
       { name
-      , kindVars
+      , typeVars
       , body
       }
 
-checkPattern :: CanSC r => Pattern -> (Pattern -> Sem r a) -> Sem r a
-checkPattern pat ret =
-  case pat of
-    PCtor i c v -> do
-      withName valuesL v \v -> do
-        ret (PCtor i c v)
-
-checkAlt :: CanSC r => Alt -> Sem r Alt
-checkAlt alt = do
-  checkPattern alt.pat \pat -> do
-    body <- checkExpr alt.body
-    return alt {pat, body}
+checkAlt :: CanSC r => (CName, (VName, Expr)) -> Sem r (CName, (VName, Expr))
+checkAlt (ctor, (var, expr)) = do
+  withName valuesL var \var -> do
+    expr <- checkExpr expr
+    return (ctor, (var, expr))
 
 checkSig :: CanSC r => Sig -> (Sig -> Sem r a) -> Sem r a
 checkSig sign ret = do
@@ -208,11 +199,11 @@ checkExpr = \case
       return (Lambda i args body)
 
   Object i fs -> do
-    fs <- for fs \(f, e) -> do
+    fs <- for (Map.toList fs) \(f, e) -> do
       e <- checkExpr e
       return (f, e)
 
-    return (Object i fs)
+    return (Object i (Map.fromList fs))
 
   Get i o f -> do
     o <- checkExpr o
@@ -220,11 +211,11 @@ checkExpr = \case
 
   Update i o fs -> do
     o <- checkExpr o
-    fs <- for fs \(f, e) -> do
+    fs <- for (Map.toList fs) \(f, e) -> do
       e <- checkExpr e
       return (f, e)
 
-    return (Update i o fs)
+    return (Update i o (Map.fromList fs))
 
   Symbol i c x -> do
     x <- checkExpr x
@@ -232,8 +223,8 @@ checkExpr = \case
 
   Case i o as -> do
     o  <-          checkExpr o
-    as <- traverse checkAlt  as
-    return (Case i o as)
+    as <- traverse checkAlt  (Map.toList as)
+    return (Case i o (Map.fromList as))
 
   EVar i v -> do
     v <- checkName valuesL v
@@ -259,12 +250,12 @@ checkKlassDecl klass ret = do
 checkInstanceDecl :: CanSC r => InstanceDecl -> Sem r InstanceDecl
 checkInstanceDecl inst = do
   header <-          checkRank1 inst.header
-  deps   <- traverse checkType  inst.deps
+  -- deps   <- traverse checkType  inst.deps
   impls  <- for inst.impls \(f, e) -> do
     e <- checkExpr e
     return (f, e)
 
-  return inst {header, deps, impls}
+  return inst {header, impls}
 
 checkTopDecl :: CanSC r => TopDecl -> (TopDecl -> Sem r a) -> Sem r a
 checkTopDecl decl ret =

@@ -12,16 +12,18 @@ data Type
   = TArrow I Type Type
   | TApp   I Type Type
   | TConst I TName
+  | TVar   I TUName
 
 instance Show' Type where
   show' p = \case
     TArrow _ d c -> pr p 5 (show' 6 d <> " -> " <> show' 5 c)
     TApp   _ f x -> pr p 4 (show' 4 f <> " "    <> show' 5 x)
     TConst _ n   -> show n
+    TVar   _ n   -> "`" <> show n
 
 data Rank1 = Rank1
   { point    :: I
-  , typeVars :: [TName]
+  , typeVars :: [TUName]
   , body     :: Type
   , ctx      :: [Type]
   }
@@ -53,7 +55,7 @@ instance Show TypeSig where
 data TypeDecl = TypeDecl
   { point    :: I
   , name     :: TName
-  , typeVars :: [TName]
+  , typeVars :: [TUName]
   , body     :: TypeExpr
   }
 

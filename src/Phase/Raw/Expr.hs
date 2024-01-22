@@ -22,12 +22,12 @@ instance Show Constant where
     F _ i -> show i
     S _ i -> show i
 
-data Pattern
-  = PCtor I CName VName  -- ctor var
+-- data Pattern
+--   = PCtor I CName VName  -- ctor var
 
-instance Show Pattern where
-  show = \case
-    PCtor  _ s v -> show s <> " " <> show v
+-- instance Show Pattern where
+--   show = \case
+--     PCtor  _ s v -> show s <> " " <> show v
 
 data LocalDef
   = LSig  Sig

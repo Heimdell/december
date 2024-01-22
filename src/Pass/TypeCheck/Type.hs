@@ -21,6 +21,9 @@ import Pass.TypeCheck.Kind
 import Name
 import Ignored
 import Show'
+import Data.Coerce
+import Data.Bifunctor
+import Debug.Trace (traceShowM)
 
 type Kinds       = Map.Map TName O.Kind
 type Implemented = Map.Map TName ()
@@ -80,6 +83,10 @@ inferKindOfType = \case
 
     return (O.TApp f' x', kr)
 
+  I.TVar i n -> do
+    kind <- findType n.name
+    return (Var (TVar_ n), kind)
+
 checkKindOfType :: CanTCTypes r => O.Kind -> I.Type -> Sem r O.Type
 checkKindOfType kind ty = do
   (ty', kind') <- inferKindOfType ty
@@ -95,28 +102,30 @@ withKinds delta = local (Map.fromList delta <>)
 
 checkKindOfRank1 :: CanTCTypes r => I.Rank1 -> Sem r O.Rank1
 checkKindOfRank1 rank1 = do
-  delta <- for rank1.typeVars \tv -> do
-    tv' <- refresh tv
-    return (tv', KVar tv')
+  delta <- for (rank1.typeVars :: [TUName]) \tv -> do
+    tv' <- refresh tv.name
+    return (tv, KVar tv')
 
-  withKinds delta do
+  withKinds (map (first (.name)) delta) do
     body <-           checkKindOfType O.KStar   rank1.body
     ctx  <- traverse (checkKindOfType O.KClass) rank1.ctx
+    -- traceShowM ("SCHEME", Rank1Base body ctx)
+    -- traceShowM ("SCHEME", generalise $ Rank1Base body ctx)
     return
-      $ Scheme (map (TVar_ . fst) delta)
+      $ generalise
       $ Rank1Base body ctx
 
 checkKindOfRank1Class :: CanTCTypes r => I.Rank1 -> Sem r O.Rank1
 checkKindOfRank1Class rank1 = do
   delta <- for rank1.typeVars \tv -> do
-    tv' <- refresh tv
+    tv' <- refresh tv.name
     return (tv', KVar tv')
 
   withKinds delta do
     body <-           checkKindOfType O.KClass  rank1.body
     ctx  <- traverse (checkKindOfType O.KClass) rank1.ctx
     return
-      $ Scheme (map (TVar_ . fst) delta)
+      $ generalise
       $ Rank1Base body ctx
 
 withTypeSig :: CanTCTypes r => I.TypeSig -> Sem r a -> Sem r a
@@ -129,14 +138,14 @@ withTypeStruct tname struct ret = do
   local @Structures (Map.singleton tname struct <>) do
     ret
 
-withTypeVars :: CanTCTypes r => I -> O.Kind -> [TName] -> Sem r a -> Sem r a
+withTypeVars :: (Coercible t TName, CanTCTypes r) => I -> O.Kind -> [t] -> Sem r a -> Sem r a
 withTypeVars _  O.KStar       []       ret = ret
 withTypeVars _  O.KClass      []       ret = ret
 withTypeVars i (O.KArrow d c) (t : ts) ret = do
-  withKinds [(t, d)] do
+  withKinds [(coerce t, d)] do
     withTypeVars i c ts do
       ret
-withTypeVars _ _ (t : _) ret = throw (ExcessiveTypeVar t)
+withTypeVars _ _ (t : _) ret = throw (ExcessiveTypeVar (coerce t))
 withTypeVars i _  _      ret = throw (NotEnoughTypeVars i)
 
 withTypeDecl :: CanTCTypes r => I.TypeDecl -> Sem r a -> Sem r a

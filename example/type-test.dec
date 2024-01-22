@@ -1,0 +1,46 @@
+
+module Type-check where
+
+sig id    : type a. a -> a
+sig const : type a b. b -> a -> a
+
+val id    = \x    -> x
+val const = \y, x -> x
+
+kind Unit : *
+type Unit = {}
+
+sig u : Unit
+val u = (id id) {}
+
+kind Or : * => * => *
+type Or a b =
+  < #Left  : a
+  , #Right : b
+  >
+
+kind And : * => * => *
+type And a b =
+  { fst : a
+  , snd : b
+  }
+
+kind Some : * => *
+kind Many : * => *
+
+type Some a = {  head : a,     tail : Many a }
+type Many a = < #Nil  : Unit, #Cons : Some a >
+
+sig map-some : type a b. (a -> b) -> Some a -> Some b
+sig map-many : type a b. (a -> b) -> Many a -> Many b
+
+val map-some = \f, some ->
+  { head = f some.head
+  , tail = map-many f some.tail
+  }
+
+val map-many = \f, many ->
+  case many of {
+    #Cons xs -> #Cons (map-some f xs);
+    #Nil  u  -> #Nil u
+  }

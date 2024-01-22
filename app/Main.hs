@@ -2,7 +2,7 @@
 import Phase.Raw
 import Pass.Parsing
 import Pass.ScopeCheck
-import Pass.TypeCheck (runTC, typeCheckAndDump)
+import Pass.TypeCheck (runTC, typeCheckAndDump, typeCheckProg)
 import Text.Parser.Yard.Run (parseFile)
 
 import System.Environment
@@ -22,7 +22,13 @@ main = do
               print scopeErr
 
             Right prog -> do
-              print prog
+              -- print prog
+              case runTC (typeCheckProg prog typeCheckAndDump) mempty mempty of
+                Left typeErr -> do
+                  putStrLn typeErr
+
+                Right prog -> do
+                  print prog
 
     _ -> do
       putStrLn "USAGE: dec <file>"

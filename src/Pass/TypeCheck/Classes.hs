@@ -37,10 +37,10 @@ acceptClassDecl
   -> (O.KlassDecl -> Sem r a)
   -> Sem r a
 acceptClassDecl (I.KlassDecl n as dep fs) k = do
-  let telescope :: O.Kind = foldr (O.KArrow . KVar) O.KClass as
-  let ctx0      :: O.Type = foldl (\f x -> O.TArrow f (O.TConst x)) (O.TConst n) as
+  let telescope :: O.Kind = foldr (O.KArrow . KVar) O.KClass (map (.name) as)
+  let ctx0      :: O.Type = foldl (\f x -> O.TArrow f (O.TConst x)) (O.TConst n) (map (.name) as)
   withKinds [(n, telescope)] do
-    (dep, fs) <- withKinds (map (\t -> (t, KVar t)) as) do
+    (dep, fs) <- withKinds (map (\t -> (t.name, KVar t.name)) as) do
       dep <- traverse (checkKindOfType O.KClass) dep
 
       fs <- for fs \(f, sig) -> do

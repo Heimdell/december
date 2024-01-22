@@ -28,7 +28,7 @@ newtype CName = CName { name :: Name } deriving newtype (Eq, Ord)
 newtype FName = FName { name :: Name } deriving newtype (Eq, Ord, Show')
 newtype MName = MName { name :: Name } deriving newtype (Eq, Ord, Show')
 
-newtype TUName = TUName { name :: TName } deriving newtype (Eq, Ord)
+newtype TUName = TUName { name :: TName } deriving newtype (Eq, Ord, IsName)
 
 instance Show' CName where
   show' _ n = "#" <> show n.name

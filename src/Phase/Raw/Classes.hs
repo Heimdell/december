@@ -15,7 +15,7 @@ import Pass.TypeCheck.Expr (CanTCExprs)
 
 data KlassDecl = KlassDecl
   { name   :: TName
-  , args   :: [TName]
+  , args   :: [TUName]
   , deps   :: [Type]
   , fields :: [(VName, Rank1)]
   }

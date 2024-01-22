@@ -15,7 +15,7 @@ import Pass.TypeCheck.Expr (CanTCExprs)
 
 data KlassDecl = KlassDecl
   { name   :: TName
-  , args   :: [TName]
+  , args   :: [TUName]
   , deps   :: [Type]
   , fields :: [(VName, Rank1)]
   }
@@ -29,14 +29,13 @@ instance Show KlassDecl where
 data InstanceDecl = InstanceDecl
   { point  :: I
   , header :: Rank1
-  , deps   :: [Type]
+  -- , deps   :: [Type]
   , impls  :: [(VName, Expr)]
   }
 
 instance Show InstanceDecl where
   show id =
-    "instance " <> show id.header <> " when\n"
-      <> indent (unlines (map show id.deps))
-      <> "{\n"
+    "instance " <> show id.header
+      <> " {\n"
       <> indent (unlines (map assign id.impls))
       <> "}"

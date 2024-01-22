@@ -20,7 +20,7 @@ data Type_ it
   deriving stock    (Functor, Foldable, Traversable, Generic1, Eq, Ord)
   deriving anyclass (Unifiable)
 
-newtype TVar_ = TVar_ { name :: TName }
+newtype TVar_ = TVar_ { name :: TUName }
   deriving newtype (Eq, Ord, Show', IsName)
 
 type Type = Term Type_ TVar_
@@ -54,23 +54,22 @@ type Rank1TypeExpr_ n = Scheme TypeExpr_ n
 type Rank1TypeExpr    = Rank1TypeExpr_ TVar_
 
 instance Show' n => Show' (Rank1Base n) where
-  show' _ r1b = show r1b.body <> " when\n" <> punctuate ",\n" (map show r1b.ctx)
+  show' _ r1b = show r1b.body <> " when " <> punctuate ", " (map show r1b.ctx)
 
 instance Show' n => Show' (Type_ n) where
   show' p = \case
     TArrow_ d c -> pr p 5 (show' 6 d <> " -> " <> show' 5 c)
     TApp_   f x -> pr p 4 (show' 4 f <> " "    <> show' 5 x)
-    TConst_ n   -> show n
+    TConst_ n   -> "#" <> show n
 
-
-substitute :: [(TVar_, Type)] -> Type -> Type
-substitute ctx = go
-  where
-    go = \case
-      TApp   f x -> TApp (go f) (go x)
-      TArrow f x -> TArrow (go f) (go x)
-      Var    v   -> Var v
-      TConst   n -> fromMaybe (TConst n) (lookup (TVar_ n) ctx)
+-- substitute :: [(TVar_, Type)] -> Type -> Type
+-- substitute ctx = go
+--   where
+--     go = \case
+--       TApp   f x -> TApp (go f) (go x)
+--       TArrow f x -> TArrow (go f) (go x)
+--       Var    v   -> Var v
+--       TConst   n -> fromMaybe (TConst n) (lookup (TVar_ n) ctx)
 
 substituteTVars :: [(TVar_, Type)] -> Type -> Type
 substituteTVars ctx = go

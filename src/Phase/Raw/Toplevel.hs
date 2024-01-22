@@ -15,8 +15,8 @@ import Data.Function ((&))
 import Pass.TypeCheck.Expr (CanTCExprs)
 
 data Imported
-  = Typename Name
-  | Value    Name
+  = Typename TName
+  | Value    VName
 
 instance Show Imported where
   show = \case
@@ -25,7 +25,7 @@ instance Show Imported where
 
 data Import = Import
   { point   :: I
-  , module_ :: Name
+  , module_ :: MName
   , items   :: [Imported]
   }
 
@@ -50,7 +50,7 @@ instance Show TopDecl where
     Instance _ i -> show i <> "\n"
 
 data Prog = Prog
-  { name    :: Name
+  { name    :: MName
   , imports :: [Import]
   , decls   :: [TopDecl]
   }

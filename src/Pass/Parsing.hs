@@ -2,6 +2,7 @@
 module Pass.Parsing where
 
 import Data.Text qualified as Text
+import Data.Map qualified as Map
 import Data.Maybe
 
 import Text.Parser.Yard hiding (Expr)
@@ -34,16 +35,18 @@ lname = token do ctor' Name <*> kebabLowerCase isReserved <*> pure 0
 uname :: Parser Name
 uname = token do ctor' Name <*> kebabUpperCase isReserved <*> pure 0
 
-vname :: Parser Name
-tname :: Parser Name
-cname :: Parser Name
-fname :: Parser Name
-mname :: Parser Name
-vname = token    lname
-tname = token    uname
-mname = token    uname
-cname = token do char '#'; uname
-fname = token    lname
+vname :: Parser VName
+tname :: Parser TName
+cname :: Parser CName
+fname :: Parser FName
+mname :: Parser MName
+tuname :: Parser TUName
+vname = VName <$> token    lname
+tname = TName <$> token    uname
+mname = MName <$> token    uname
+cname = CName <$> token do char '#'; uname
+fname = FName <$> token    lname
+tuname = (TUName . TName) <$> lname
 
 imported :: Parser Imported
 imported = (Typename <$> tname) <|> (Value <$> vname)
@@ -90,8 +93,8 @@ type_ = do
       return (foldl1 (TApp p) xs)
       where
         typeTerm = choose
-          [ TConst <$> (Ign <$> getPosition) <*> lname
-          , TConst <$> (Ign <$> getPosition) <*> uname
+          [ TConst <$> (Ign <$> getPosition) <*> tname
+          , TVar   <$> (Ign <$> getPosition) <*> tuname
           , group type_
           ]
 
@@ -105,7 +108,7 @@ scheme = polytype <|> monotype
     polytype =
       ctor' Rank1
         <*  slug "type"
-        <*> some vname
+        <*> some tuname
         <*  slug "."
         <*> type_
         <*> option [] do
@@ -118,13 +121,13 @@ typeExpr = record <|> union
     record =
       ctor' Record
         <*  slug "{"
-        <*> do fieldDecl `sepBy` slug ","
+        <*> do Map.fromList <$> do fieldDecl `sepBy` slug ","
         <*  slug "}"
 
     union =
       ctor' Union
         <*  slug "<"
-        <*> do ctorDecl  `sepBy` slug ","
+        <*> do Map.fromList <$> do ctorDecl  `sepBy` slug ","
         <*  slug ">"
 
     fieldDecl = do
@@ -139,7 +142,7 @@ typeExpr = record <|> union
       t <- type_
       return (c, t)
 
-kvar :: Parser (Name, Kind)
+kvar :: Parser (VName, Kind)
 kvar = group do
   v <- vname
   _ <- slug ":"
@@ -156,10 +159,10 @@ typeSig = do
 
 typeDecl :: Parser TypeDecl
 typeDecl = do
-  pure TypeDecl
+  ctor' TypeDecl
     <*  slug "type"
     <*> tname
-    <*> many vname
+    <*> many tuname
     <*  slug "="
     <*> typeExpr
 
@@ -168,19 +171,15 @@ constant = token do
       ctor' (\p -> either (F p) (I p)) <*> number
   <|> ctor' S <* char '\'' <*> stringLiteral defaultCharEscapes "\'" <* char '\''
 
-pattern_ :: Parser Pattern
-pattern_ = choose
-  [ ctor' PCtor  <*> cname <*> vname
-  ]
-
-alt :: Parser Alt
+alt :: Parser (CName, (VName, Expr))
 alt = do
-  ctor' Alt
-    <*> pattern_
+  pure (\c v e -> (c, (v, e)))
+    <*> cname
+    <*> vname
     <*  slug "->"
     <*> expr
 
-fieldAssign :: Parser (Name, Expr)
+fieldAssign :: Parser (FName, Expr)
 fieldAssign = do
   pure (,) <*> fname <* slug "=" <*> expr
 
@@ -216,7 +215,7 @@ expr = letExpr <|> appExpr
 
       , ctor' Object
           <*     slug "{"
-          <*> do fieldAssign `sepBy` slug ","
+          <*> do Map.fromList <$> do fieldAssign `sepBy` slug ","
           <*     slug "}"
 
       , ctor' Update
@@ -224,7 +223,7 @@ expr = letExpr <|> appExpr
           <*>    expr
           <*     slug "do"
           <*     slug "{"
-          <*> do fieldAssign `sepBy` slug ","
+          <*> do Map.fromList <$> do fieldAssign `sepBy` slug ","
           <*     slug "}"
 
       , ctor' Symbol
@@ -236,7 +235,7 @@ expr = letExpr <|> appExpr
           <*> expr
           <*  slug "of"
           <*  slug "{"
-          <*> do alt `sepBy` slug ";"
+          <*> do Map.fromList <$> do alt `sepBy` slug ";"
           <*  slug "}"
 
       , ctor' EVar
@@ -272,7 +271,7 @@ klassDecl = do
   pure KlassDecl
     <*  slug "class"
     <*> tname
-    <*> some vname
+    <*> some tuname
     <*> option [] do
       slug "when"
       do type_ `sepBy` slug ","
@@ -289,9 +288,9 @@ instanceDecl = do
   ctor' InstanceDecl
     <*  slug "instance"
     <*> scheme
-    <*> option [] do
-      slug "when"
-      do type_ `sepBy` slug ","
+    -- <*> option [] do
+    --   slug "when"
+    --   do type_ `sepBy` slug ","
     <*  slug "{"
     <*> flip sepBy (slug ";") do
       pure (,)

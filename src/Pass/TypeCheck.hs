@@ -70,8 +70,8 @@ reportError
   :: (Show e, Member (Error String) r)
   => Sem (Error e : r) a
   -> Sem r a
-reportError = interpretH \case
-  Throw e -> throw (show e)
+reportError ma = do
+  runError ma >>= either (throw . show) return
 
 runTC
   :: Sem R a

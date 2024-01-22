@@ -2,31 +2,32 @@
 name: december
 
 default-extensions:
+- BlockArguments
+- ConstraintKinds
+- DataKinds
+- DeriveAnyClass
+- DeriveFoldable
+- DeriveFunctor
+- DeriveGeneric
+- DeriveTraversable
+- DerivingStrategies
 - DisambiguateRecordFields
 - DuplicateRecordFields
-- NoFieldSelectors
-- OverloadedRecordDot
-- DerivingStrategies
-- BlockArguments
-- LambdaCase
-- ImportQualifiedPost
-- NamedFieldPuns
-- DeriveFunctor
-- ScopedTypeVariables
-- UndecidableInstances
+- FlexibleContexts
 - FlexibleInstances
 - GeneralizedNewtypeDeriving
-- DeriveAnyClass
-- DeriveTraversable
-- DeriveFoldable
-- DeriveGeneric
-- PatternSynonyms
-- DataKinds
-- RankNTypes
-- FlexibleContexts
-- TypeApplications
-- ConstraintKinds
+- ImportQualifiedPost
+- LambdaCase
+- NamedFieldPuns
+- NoFieldSelectors
+- OverloadedRecordDot
 - OverloadedStrings
+- PatternSynonyms
+- RankNTypes
+- ScopedTypeVariables
+- TypeApplications
+- TypeOperators
+- UndecidableInstances
 
 dependencies:
 - base

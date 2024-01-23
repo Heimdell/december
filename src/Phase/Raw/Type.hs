@@ -13,6 +13,7 @@ data Type
   | TApp   I Type Type
   | TConst I TName
   | TVar   I TUName
+  | TEq    I Type Type
 
 instance Show' Type where
   show' p = \case
@@ -20,6 +21,7 @@ instance Show' Type where
     TApp   _ f x -> pr p 4 (show' 4 f <> " "    <> show' 5 x)
     TConst _ n   -> show n
     TVar   _ n   -> "`" <> show n
+    TEq    _ t u -> pr p 6 (show' 6 t <> " ~ " <> show' 6 u)
 
 data Rank1 = Rank1
   { point    :: I

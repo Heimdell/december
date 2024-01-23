@@ -42,6 +42,8 @@ type CanTCExprs r =
       , Refreshes TName
       , Refreshes TVar_
       , Error ExprErr
+      , Error (Mismatch O.Type_ O.TVar_)
+      , Error (Occurs O.Type_ O.TVar_)
       ] r
   )
 
@@ -53,6 +55,8 @@ data ExprErr
   | IsNotStructuralType O.Type I
   | FieldSetDiverges O.Type [FName] [FName] I
   | CtorSetDiverges O.Type [CName] [CName] I
+  | UMismatch O.Type O.Type (Mismatch O.Type_ O.TVar_) I
+  | UOccurs O.Type O.Type (Occurs O.Type_ O.TVar_) I
 
 instance Show ExprErr where
   show = \case
@@ -86,6 +90,14 @@ instance Show ExprErr where
         "type " <> show ty <> " expected to have ctors " <> show got
           <> " but it has " <> show exp
 
+    UMismatch a b err i -> do
+      rep i do
+        show a <> " =\\= " <> show b <> ",\n" <> show err
+
+    UOccurs a b err i -> do
+      rep i do
+        show err
+
 
 withSchemes :: CanTCExprs r => [(VName, O.Rank1)] -> Sem r a -> Sem r a
 withSchemes delta ret = do
@@ -101,11 +113,10 @@ unApply i = \case
   O.TApp f x -> do
     (f, xs) <- unApply i f
     return (f, xs ++ [x])
-  arr@O.TArrow {} ->
-    throw (IsNotStructuralType arr i)
-
   var@Var {} ->
     throw (IsNotConcreteTypeApplication var i)
+  arr ->
+    throw (IsNotStructuralType arr i)
 
 erase :: CanTCExprs r => I -> O.Type -> Sem r O.Type
 erase i ty = do
@@ -145,6 +156,18 @@ newTVar i n = Var <$> refresh (TVar_ (TUName (TName (Name i n 0))))
 monotype :: O.Type -> O.Rank1
 monotype ty = Scheme [] (Rank1Base ty [])
 
+unify :: CanTCExprs r => I -> O.Type -> O.Type -> Sem r ()
+unify i a b = do
+  b =:= a
+    `catch` \err@Mismatch{} -> do
+      a <- apply a
+      b <- apply b
+      throw $ UMismatch a b err i
+    `catch` \err@Occurs{} -> do
+      a <- apply a
+      b <- apply b
+      throw $ UOccurs a b err i
+
 checkTypeOfExpr
   :: CanTCExprs r
   => O.Type
@@ -163,7 +186,7 @@ checkTypeOfExpr ty = \case
     -- traceShowM ("expr", rank1)
     Rank1Base body ctx <- instantiate rank1        -- instantiate unto type
     -- traceShowM ("expr", body, ctx)
-    body =:= ty                                    -- check against ideal
+    unify i body ty                                    -- check against ideal
     -- traceShowM ("expr", "at")
     return (O.EVar v ::: body, Set.fromList ctx)
 
@@ -176,7 +199,7 @@ checkTypeOfExpr ty = \case
   I.Lambda i (a : as) b -> do
     xType <- newTVar i "x"                -- invent arg type
     rType <- newTVar i "r"                -- invent res type
-    O.TArrow xType rType =:= ty           -- "deconstruct" ty to be (arg -> res)
+    unify i (O.TArrow xType rType) ty           -- "deconstruct" ty to be (arg -> res)
     withSchemes [(a, monotype xType)] do
       (lam, cl) <- checkTypeOfExpr rType (I.Lambda i as b)
       return (O.Lambda a lam ::: ty, cl)
@@ -222,7 +245,7 @@ checkTypeOfExpr ty = \case
     case Map.lookup f fs of
       Nothing -> throw (FieldSetDiverges o.type_ [f] (Map.keys fs) i)
       Just ty' -> do
-        ty' =:= ty
+        unify i ty' ty
         return (O.Get o f ::: ty, ctx)
 
   I.Symbol i c a -> do
@@ -260,7 +283,7 @@ checkTypeOfExpr ty = \case
 
   I.Ann i e ty' -> do
     ty' <- checkKindOfType O.KStar ty'
-    ty' =:= ty
+    unify i ty' ty
     checkTypeOfExpr ty' e
 
   I.Const i c -> do
@@ -268,15 +291,32 @@ checkTypeOfExpr ty = \case
       I.I i a -> return (O.I a, O.TConst (TName (Name i "Integer" 0)))
       I.F i a -> return (O.F a, O.TConst (TName (Name i "Float"   0)))
       I.S i a -> return (O.S a, O.TConst (TName (Name i "String"  0)))
-    ty' =:= ty
+    unify i ty' ty
     return (O.Const c ::: ty, mempty)
+
+  I.Refl i -> do
+    a <- newTVar i "a"
+    return (O.Refl ::: O.TEq a a, mempty)
+
+  I.Sym i e -> do
+    a <- newTVar i "a"
+    b <- newTVar i "b"
+    (e, ectx) <- checkTypeOfExpr (O.TEq a b) e
+    return (O.Sym e ::: O.TEq b a, mempty)
+
+  I.Transp i r e -> do
+    a <- newTVar i "a"
+    b <- newTVar i "b"
+    (r, rctx) <- checkTypeOfExpr (O.TEq a b) r
+    (e, ectx) <- checkTypeOfExpr a e
+    return (O.Transp r e ::: b, mempty)
 
 acceptDecl
   :: CanTCExprs r
   => I.Decl
   -> (O.Decl -> Sem r a)
   -> Sem r a
-acceptDecl (I.Decl name body) k = do
+acceptDecl (I.Decl i name body) k = do
   -- scs <- ask @Schemes
   -- when (not (Map.member name scs)) do
   --   error (show (scs, name))
@@ -289,7 +329,7 @@ acceptDecl (I.Decl name body) k = do
   -- traceShowM "ay"
   (body, ctxs') <- checkTypeOfExpr ty body
   -- traceShowM "y?"
-  ty0.body =:= ty
+  unify i body.type_ ty
   -- TODO: Solve constraints!
   -- traceShowM ("ENTER", name, sc)
   r <- k (O.Decl name body)

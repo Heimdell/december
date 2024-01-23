@@ -120,6 +120,11 @@ checkType = \case
     n <- checkName typesL n
     return (TVar i n)
 
+  TEq i a b -> do
+    a <- checkType a
+    b <- checkType b
+    return (TEq i a b)
+
 checkRank1 :: CanSC r => Rank1 -> Sem r Rank1
 checkRank1 rank1 = do
   withNames typesL rank1.typeVars \tvars -> do
@@ -232,6 +237,18 @@ checkExpr = \case
 
   Const i c -> do
     return (Const i c)
+
+  Refl i -> do
+    pure (Refl i)
+
+  Transp i r e -> do
+    r <- checkExpr r
+    e <- checkExpr e
+    return (Transp i r e)
+
+  Sym i e -> do
+    e <- checkExpr e
+    return (Sym i e)
 
 checkKlassDecl :: CanSC r => KlassDecl -> (KlassDecl -> Sem r a) -> Sem r a
 checkKlassDecl klass ret = do

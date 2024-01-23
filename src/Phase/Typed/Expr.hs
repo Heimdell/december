@@ -58,6 +58,9 @@ data Expr'
   | Const  Constant
 
   | Ann    Expr Type
+  | Refl
+  | Sym    Expr
+  | Transp Expr Expr
 
 instance Show' Expr where
   show' p (e ::: _) = show' p e
@@ -74,6 +77,9 @@ instance Show' Expr' where
     Case   o as -> "case " <> show o <> " {\n" <> indent (show' 0 as) <> "}"
     EVar    v   -> show v
     Const  c    -> show c
+    Refl        -> "refl"
+    Sym    e   -> "sym " <> show e
+    Transp r e  -> "transp " <> show r <> " " <> show e
 
 data Sig = Sig
   { name :: VName

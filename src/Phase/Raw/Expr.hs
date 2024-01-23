@@ -57,6 +57,10 @@ data Expr
 
   | Ann    I Expr Type
 
+  | Refl   I
+  | Sym    I Expr
+  | Transp I Expr Expr
+
 instance Show' Expr where
   show' p = \case
     Let _ decls k -> "let\n" <> indent (unlines (map show decls)) <> show k
@@ -69,6 +73,9 @@ instance Show' Expr where
     Case   _ o as -> "case " <> show o <> " {\n" <> indent (show' 0 as) <> "}"
     EVar    _ v   -> show v
     Const  _ c    -> show c
+    Refl   _      -> "refl"
+    Sym    _ e    -> "sym " <> show e
+    Transp _ r e  -> "transp " <> show r <> " " <> show e
 
 data Sig = Sig
   { name :: VName
@@ -79,7 +86,8 @@ instance Show Sig where
   show d = "sig " <> show d.name <> " : " <> show d.sig
 
 data Decl = Decl
-  { name :: VName
+  { i    :: I
+  , name :: VName
   , body :: Expr
   }
 

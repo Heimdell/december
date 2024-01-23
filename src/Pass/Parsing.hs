@@ -16,7 +16,7 @@ ctor' :: (Ign Point -> c) -> Parser c
 ctor' f = ctor (f . Ign)
 
 isReserved w = Text.unpack w ` elem` words
-  "let in type kind sig import mutual do using val case of record class instance when where with"
+  "let in type kind sig import mutual do using val case of record class instance when where with refl sym transp"
 
 space :: Parser ()
 space = space1
@@ -80,12 +80,21 @@ kind = do
 type_ :: Parser Type
 type_ = do
   p <- Ign <$> getPosition
-  d <- typeApp
+  d <- typeEq
   c <- optional do
     slug "->"
     type_
   return (foldr (flip (TArrow p)) d c)
   where
+    typeEq :: Parser Type
+    typeEq = do
+      p <- Ign <$> getPosition
+      a <- typeApp
+      end <- optional do
+        slug "~"
+        typeApp
+      return $ maybe a (TEq p a) end
+
     typeApp :: Parser Type
     typeApp = do
       p  <- Ign <$> getPosition
@@ -244,6 +253,18 @@ expr = letExpr <|> appExpr
       , ctor' Const
           <*> constant
 
+      , ctor' Refl
+          <*  slug "refl"
+
+      , ctor' Sym
+          <*  slug "sym"
+          <*> termExpr
+
+      , ctor' Transp
+          <*  slug "transp"
+          <*> termExpr
+          <*> termExpr
+
       , group expr
       ]
 
@@ -261,6 +282,7 @@ sig = do
 decl :: Parser Decl
 decl = do
   pure Decl
+    <*> Ign <$> getPosition
     <*  slug "val"
     <*> vname
     <*  slug "="

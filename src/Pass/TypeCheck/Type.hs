@@ -87,6 +87,14 @@ inferKindOfType = \case
     kind <- findType n.name
     return (Var (TVar_ n), kind)
 
+  I.TEq i a b -> do
+    (a', ka) <- inferKindOfType a
+    (b', kb) <- inferKindOfType b
+
+    ka =:= kb
+
+    return (O.TEq a' b', O.KStar)
+
 checkKindOfType :: CanTCTypes r => O.Kind -> I.Type -> Sem r O.Type
 checkKindOfType kind ty = do
   (ty', kind') <- inferKindOfType ty

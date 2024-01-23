@@ -203,3 +203,24 @@ sig clutch-fmap : type a b f. (a -> b) -> f a -> f b
 */
 sig cata : type a b f. (f a -> a) -> Fix f -> a
 val cata = \alg, f -> alg (clutch-fmap (cata alg) f.un-fix)
+
+sig transport : type a b. a ~ b -> a -> b
+val transport = \eq, a -> transp eq a
+
+sig eq-pair : type a b c d. a ~ b -> c ~ d -> And a c -> And b d
+val eq-pair = \a-b, c-d, pair ->
+  { fst = transp a-b (pair.fst)
+  , snd = transp c-d (pair.snd)
+  }
+
+/*
+  Todo: scrap and recycle.
+*/
+sig what : type a b c d . a ~ b -> c ~ d -> And a c ~ And b d
+val what = \a-b, c-d -> refl
+
+/*
+  Todo: scrap and recycle.
+*/
+sig what : type a b c d . Unit -> And a c ~ And b d
+val what = \u -> refl

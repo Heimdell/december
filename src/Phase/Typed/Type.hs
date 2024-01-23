@@ -17,6 +17,7 @@ data Type_ it
   = TApp_   it it
   | TArrow_ it it
   | TConst_ TName
+  | TEq_    it it
   deriving stock    (Functor, Foldable, Traversable, Generic1, Eq, Ord)
   deriving anyclass (Unifiable)
 
@@ -29,6 +30,7 @@ pattern TApp   f x = Struct (TApp_   f x)
 pattern TArrow d c = Struct (TArrow_ d c)
 pattern TVar   n   = Var    (TVar_   n)
 pattern TConst n   = Struct (TConst_ n)
+pattern TEq a b    = Struct (TEq_ a b)
 
 data TypeExpr_ n
   = Record (Map.Map FName (Term Type_ n))
@@ -61,15 +63,7 @@ instance Show' n => Show' (Type_ n) where
     TArrow_ d c -> pr p 5 (show' 6 d <> " -> " <> show' 5 c)
     TApp_   f x -> pr p 4 (show' 4 f <> " "    <> show' 5 x)
     TConst_ n   -> show n
-
--- substitute :: [(TVar_, Type)] -> Type -> Type
--- substitute ctx = go
---   where
---     go = \case
---       TApp   f x -> TApp (go f) (go x)
---       TArrow f x -> TArrow (go f) (go x)
---       Var    v   -> Var v
---       TConst   n -> fromMaybe (TConst n) (lookup (TVar_ n) ctx)
+    TEq_    a b -> pr p 6 (show a <> " ~ " <> show b)
 
 substituteTVars :: [(TVar_, Type)] -> Type -> Type
 substituteTVars ctx = go
@@ -78,4 +72,5 @@ substituteTVars ctx = go
       TApp   f x -> TApp (go f) (go x)
       TArrow f x -> TArrow (go f) (go x)
       TConst   v -> TConst v
+      TEq    a b -> TEq (go a) (go b)
       Var    n   -> fromJust (lookup n ctx)
